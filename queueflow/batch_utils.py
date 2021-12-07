@@ -1,47 +1,17 @@
-from typing import Dict, List
+from typing import Dict, List, Set, Tuple
 
 import numpy as np
 import torch
 import torch_geometric
-import torch_sparse
-
-from typeguard import check_type
 
 
-def istype(obj, objtype) -> bool:
-    try:
-        check_type("foo", obj, objtype)
-        return True
-    except TypeError:
-        return False
-
-
-
-def move_batch_to_device(batch, device):
+def move(element, device):
     """This function moves batches (eg. from torch_geometric) to a specified device
     and also takes into account manually assinged properties."""
 
-    def move(element):
-        if torch.is_tensor(element):
-            return element.to(device)
-        if isinstance(element, torch_sparse.SparseTensor):
-            return element.to(device)
-        elif isinstance(element, (list, set, tuple)):
-            return type(element)((move(ee) for ee in element))
-        elif isinstance(element, dict):
-            return {k: move(ee) for k, ee in element.items()}
-        elif element is None:
-            return None
-        elif isinstance(element, (int, str, float)):
-            return element
-        elif type(element).__module__ == np.__name__:
-            return element
-        else:
-            raise ValueError
-
-    if isinstance(batch, torch_geometric.data.Data):
-        batch_new = torch_geometric.data.Batch().from_dict(
-            {k: move(v) for k, v in batch.to_dict().items()}
+    if isinstance(element, torch_geometric.data.Data):
+        element_new = torch_geometric.data.Batch().from_dict(
+            {k: move(v, device) for k, v in element.to_dict().items()}
         )
         for attr in [
             "__slices__",
@@ -50,29 +20,34 @@ def move_batch_to_device(batch, device):
             "__num_nodes_list__",
             "__num_graphs__",
         ]:
-            if hasattr(batch_new, attr):
-                setattr(batch_new, attr, move(getattr(batch, attr)))
-    elif istype(batch, torch.Tensor):
-        batch_new = batch.to(device)
-    elif istype(batch, List[torch.Tensor]):
-        batch_new = [move(v) for v in batch]
-    elif istype(batch, Dict[str, torch.Tensor]):
-        batch_new = {k: move(v) for k, v in batch.items()}
+            if hasattr(element_new, attr):
+                setattr(element_new, attr, move(getattr(element, attr), device))
+        return element_new
+    elif hasattr(element, "to") and callable(getattr(element, "to")):
+        return element.to(device)
+    elif isinstance(element, (List, Set, Tuple)):
+        return type(element)((move(ee, device) for ee in element))
+    elif isinstance(element, Dict):
+        return {k: move(v, device) for k, v in element.items()}
+    elif isinstance(element, (int, str, float)):
+        return element
+    elif type(element).__module__ == np.__name__:
+        return element
+    elif element is None:
+        return None
     else:
-        raise RuntimeError(
-            "Cannot move this object to the torch device, invalid type."
-        )
-    return batch_new
+        raise RuntimeError("Cannot move this object to the torch device, invalid type.")
+
+
+move_batch_to_device = move
 
 
 def clone_or_copy(element):
-    if torch.is_tensor(element):
+    if hasattr(element, "clone") and callable(getattr(element, "clone")):
         return element.clone()
-    if isinstance(element, torch_sparse.SparseTensor):
-        return element.clone()
-    elif isinstance(element, (list, set, tuple)):
+    elif isinstance(element, (List, Set, Tuple)):
         return type(element)((clone_or_copy(ee) for ee in element))
-    elif isinstance(element, dict):
+    elif isinstance(element, Dict):
         return {k: clone_or_copy(ee) for k, ee in element.items()}
     elif isinstance(element, (int, str, float)):
         return element

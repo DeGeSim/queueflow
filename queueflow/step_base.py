@@ -15,10 +15,10 @@ class StepBase:
 
     def __init__(
         self,
-        workerfn=None,
-        nworkers=1,
-        deamonize=True,
-        name=None,
+        workerfn: callable =None,
+        nworkers: int =1,
+        deamonize: bool=True,
+        name: str = "DefaultWorkerName",
     ):
         self.name = type(self) if name is None else name
         self.workerfn = workerfn
