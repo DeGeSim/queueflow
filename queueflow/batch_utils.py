@@ -22,21 +22,22 @@ def move(element, device):
         ]:
             if hasattr(element_new, attr):
                 setattr(element_new, attr, move(getattr(element, attr), device))
-        return element_new
     elif hasattr(element, "to") and callable(getattr(element, "to")):
-        return element.to(device)
+        element_new = element.to(device)
     elif isinstance(element, (List, Set, Tuple)):
-        return type(element)((move(ee, device) for ee in element))
+        element_new = type(element)((move(ee, device) for ee in element))
     elif isinstance(element, Dict):
-        return {k: move(v, device) for k, v in element.items()}
+        element_new = {k: move(v, device) for k, v in element.items()}
     elif isinstance(element, (int, str, float)):
-        return element
+        element_new = element
     elif type(element).__module__ == np.__name__:
-        return element
+        element_new = element
     elif element is None:
-        return None
+        element_new = None
     else:
         raise RuntimeError("Cannot move this object to the torch device, invalid type.")
+    del element
+    return element_new
 
 
 move_batch_to_device = move
