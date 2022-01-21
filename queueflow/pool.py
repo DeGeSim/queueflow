@@ -4,7 +4,6 @@ from multiprocessing.queues import Empty
 from torch import multiprocessing as mp
 
 from .logger import logger
-
 from .step_base import StepBase
 from .terminate_queue import TerminateQueue
 
@@ -46,7 +45,7 @@ class PoolStep(StepBase):
             self.n_pool_workers,
         )
 
-    def _worker(self):
+    def _worker(self, shutdown_event):
         self.set_workername()
         logger.debug(
             f"{self.workername} pool  initalizing with"
@@ -54,7 +53,7 @@ class PoolStep(StepBase):
         )
         self.pool = mp.Pool(self.n_pool_workers)
 
-        while not self.shutdown_event.is_set():
+        while not shutdown_event.is_set():
             try:
                 wkin = self.inq.get(block=True, timeout=0.05)
             except Empty:
@@ -94,10 +93,10 @@ class PoolStep(StepBase):
                     if wkout_async_res.ready():
                         wkout = wkout_async_res.get()
                         break
-                    elif self.shutdown_event.is_set():
+                    elif shutdown_event.is_set():
                         break
                     wkout_async_res.wait(1)
-                if self.shutdown_event.is_set():
+                if shutdown_event.is_set():
                     break
 
             except Exception as error:

@@ -6,9 +6,8 @@ from multiprocessing.queues import Queue as queues_class
 from prettytable import PrettyTable
 from torch import multiprocessing as mp
 
-from .logger import logger
-
 from .in_out import InputStep, OutputStep
+from .logger import logger
 from .step_base import StepBase
 
 
@@ -30,11 +29,15 @@ class Sequence:
      as recommended in the torch.multiprocessing package.
     """
 
-    def __init__(self, *seq):
+    def __init__(
+        self,
+        shutdown_event: mp.Event,
+        *seq,
+    ):
         self.__iterable_queued = False
         self.__seq = [InputStep(), *seq, OutputStep()]
 
-        self.shutdown_event = mp.Event()
+        self.shutdown_event = shutdown_event
         self.error_queue = mp.Queue()
         # Chain the processes and queues
 
@@ -63,13 +66,9 @@ class Sequence:
         # Connect the input:
         self.__seq[0].connect_to_sequence(
             output_queue=self.__seq[1],
-            shutdown_event=self.shutdown_event,
         )
         # Connect the output:
-        self.__seq[-1].connect_to_sequence(
-            input_queue=self.__seq[-2],
-            shutdown_event=self.shutdown_event,
-        )
+        self.__seq[-1].connect_to_sequence(input_queue=self.__seq[-2])
 
         # Set up the processes
         for i, step in enumerate(self.__seq):
@@ -79,7 +78,6 @@ class Sequence:
                 input_queue=self.__seq[i - 1],
                 output_queue=self.__seq[i + 1],
                 error_queue=self.error_queue,
-                shutdown_event=self.shutdown_event,
             )
 
         # make sure everything is connected properly
@@ -91,11 +89,11 @@ class Sequence:
 
             # Print the status of the queue once in while
         self.status_printer_thread = threading.Thread(
-            target=self.printflowstatus, daemon=True
+            target=self.printflowstatus, daemon=True, args=(self.shutdown_event,)
         )
         # Print the status of the queue once in while
         self.error_queue_thread = threading.Thread(
-            target=self.read_error_queue, daemon=True
+            target=self.read_error_queue, daemon=True, args=(self.shutdown_event,)
         )
         self.__start()
 
@@ -179,25 +177,25 @@ class Sequence:
 Process {ip} (of {len(step.processes)}) of step {istep} is still alive!"""
                     )
             logger.debug(f"Stopping sequence step {istep}")
+        for queue in self.queues:
+            queue.close()
+            queue.join_thread()
+        print("Stopping Sequence complete")
 
-    def read_error_queue(self):
+    def read_error_queue(self, shutdown_event):
         threading.current_thread().setName("readErrorQueue")
-        while not self.shutdown_event.is_set() and not self.error_queue._closed:
+        while not shutdown_event.is_set() and not self.error_queue._closed:
             try:
-                workermsg, wkin, error = self.error_queue.get(
-                    block=True, timeout=0.5
-                )
+                workermsg, wkin, error = self.error_queue.get(block=True, timeout=0.5)
                 # If there is an error, stop eveything
                 logger.error("Error, setting shutdown event!")
-                self.shutdown_event.set()
+                shutdown_event.set()
                 logger.error(workermsg)
                 try:
                     errstr = str(wkin)[:400]
                     logger.error(errstr)
                 finally:
-                    logger.error(
-                        "Type of object causing the error:" + str(type(wkin))
-                    )
+                    logger.error("Type of object causing the error:" + str(type(wkin)))
                     raise error
             except Empty:
                 continue
@@ -248,11 +246,11 @@ Process {ip} (of {len(step.processes)}) of step {istep} is still alive!"""
                 )
         return table
 
-    def printflowstatus(self):
+    def printflowstatus(self, shutdown_event):
         threading.current_thread().setName("flowstatusPrinter")
         oldflowstatus = ""
         sleeptime = 5
-        while not self.shutdown_event.is_set():
+        while not shutdown_event.is_set():
             newflowstatus = str(self.flowstatus())
             if newflowstatus != oldflowstatus:
                 logger.info("\n" + newflowstatus)

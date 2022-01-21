@@ -15,9 +15,10 @@ class StepBase:
 
     def __init__(
         self,
-        workerfn: callable =None,
-        nworkers: int =1,
-        deamonize: bool=True,
+        shutdown_event: mp.Event,
+        workerfn: callable = None,
+        nworkers: int = 1,
+        deamonize: bool = True,
         name: str = "DefaultWorkerName",
     ):
         self.name = type(self) if name is None else name
@@ -25,20 +26,22 @@ class StepBase:
         self.nworkers = nworkers
         self.deamonize = deamonize
         self.processes = [
-            mp.Process(target=self._worker, daemon=self.deamonize)
+            mp.Process(
+                target=self._worker,
+                daemon=self.deamonize,
+                args=(shutdown_event,),
+            )
             for _ in range(self.nworkers)
         ]
         self.count_in = 0
         self.count_out = 0
         self.marked_as_working = False
+        self.shutdown_event = shutdown_event
 
-    def connect_to_sequence(
-        self, input_queue, output_queue, error_queue, shutdown_event
-    ):
+    def connect_to_sequence(self, input_queue, output_queue, error_queue):
         self.inq = input_queue
         self.outq = output_queue
         self.error_queue = error_queue
-        self.shutdown_event = shutdown_event
 
     def _close_queues(self):
         self.outq.close()
@@ -104,5 +107,5 @@ Had to kill process of name {self.name}."""
 {self.workername} failed on element of type of type {type(obj)}."""
         self.error_queue.put((workermsg, obj, error))
 
-    def _worker(self):
+    def _worker(self, shutdown_event):
         raise NotImplementedError

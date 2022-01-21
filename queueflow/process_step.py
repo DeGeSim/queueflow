@@ -3,7 +3,6 @@ from multiprocessing.queues import Empty
 from torch import multiprocessing as mp
 
 from .logger import logger
-
 from .step_base import StepBase
 from .terminate_queue import TerminateQueue
 
@@ -46,13 +45,13 @@ class ProcessStep(StepBase):
         )
         self.count_in, self.count_out = 0, 0
 
-    def _worker(self):
+    def _worker(self, shutdown_event):
         self.set_workername()
 
         logger.debug(
             f"{self.workername} start reading from input queue {id(self.inq)}."
         )
-        while not self.shutdown_event.is_set():
+        while not shutdown_event.is_set():
             try:
                 wkin = self.inq.get(block=True, timeout=0.05)
             except Empty:

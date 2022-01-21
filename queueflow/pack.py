@@ -2,7 +2,6 @@ from collections.abc import Iterable
 from multiprocessing.queues import Empty
 
 from .logger import logger
-
 from .step_base import StepBase
 from .terminate_queue import TerminateQueue
 
@@ -11,8 +10,9 @@ class UnpackStep(StepBase):
     """A single process takes an iterable from the incoming queue and
     puts the elements one-by-one in the outgoing queue."""
 
-    def __init__(self):
-        super().__init__(name="Unpack")
+    def __init__(self, *args, **kwargs):
+        kwargs["name"] = "Unpack"
+        super().__init__(*args, **kwargs)
 
     def __handle_terminal(self):
         logger.debug(
@@ -21,11 +21,11 @@ class UnpackStep(StepBase):
         )
         self.safe_put(self.outq, TerminateQueue())
 
-    def _worker(self):
+    def _worker(self, shutdown_event):
         self.set_workername()
         logger.info(f"{self.workername} start working")
         while True:
-            if self.shutdown_event.is_set():
+            if shutdown_event.is_set():
                 break
             try:
                 wkin = self.inq.get(block=True, timeout=0.05)
@@ -45,9 +45,7 @@ class UnpackStep(StepBase):
 {self.workername} cannot iterate over element type {type(wkin)}."""
                 self.error_queue.put((errormsg, wkin, ValueError))
                 break
-            logger.debug(
-                f"{self.workername} got element of element type {type(wkin)}."
-            )
+            logger.debug(f"{self.workername} got element of element type {type(wkin)}.")
             for element in wkin:
                 logger.debug(
                     f"""\
@@ -63,11 +61,9 @@ class PackStep(StepBase):
     """Takes an iterable from the incoming queue and
     puts the elements one-by-one in the outgoing queue."""
 
-    def __init__(
-        self,
-        nelements,
-    ):
-        super().__init__(name=f"Pack({nelements})")
+    def __init__(self, nelements, *args, **kwargs):
+        kwargs["name"] = f"Pack({nelements})"
+        super().__init__(*args, **kwargs)
         self.nelements = nelements
         self.collected_elements = []
 
@@ -84,11 +80,11 @@ class PackStep(StepBase):
         )
         self.safe_put(self.outq, TerminateQueue())
 
-    def _worker(self):
+    def _worker(self, shutdown_event):
         self.set_workername()
         logger.info(f"{self.workername} start working")
         while True:
-            if self.shutdown_event.is_set():
+            if shutdown_event.is_set():
                 break
             try:
                 wkin = self.inq.get(block=True, timeout=0.05)
@@ -126,8 +122,9 @@ class RepackStep(StepBase):
     """Takes an iterable from the incoming queue,
     collects n elements and packs them as a list in the outgoing queue."""
 
-    def __init__(self, nelements):
-        super().__init__(name=f"Repack({nelements})")
+    def __init__(self, nelements, *args, **kwargs):
+        kwargs["name"] = f"Repack({nelements})"
+        super().__init__(*args, **kwargs)
         self.nelements = nelements
         self.collected_elements = []
 
@@ -149,11 +146,11 @@ class RepackStep(StepBase):
         )
         self.count_in, self.count_out = 0, 0
 
-    def _worker(self):
+    def _worker(self, shutdown_event):
         self.set_workername()
         logger.info(f"{self.workername} start working")
         while True:
-            if self.shutdown_event.is_set():
+            if shutdown_event.is_set():
                 break
             try:
                 wkin = self.inq.get(block=True, timeout=0.05)

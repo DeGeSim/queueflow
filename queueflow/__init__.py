@@ -1,10 +1,14 @@
+import re
+
 from tblib import pickling_support
 from torch import multiprocessing as mp
 
+from .in_out import InputStep, OutputStep
 from .pack import PackStep, RepackStep, UnpackStep
 from .pool import PoolStep
 from .process_step import ProcessStep
 from .sequence import Sequence
+from .step_base import StepBase
 
 pickling_support.install()
 
@@ -22,8 +26,23 @@ pickling_support.install()
 
 
 # Make it work ()
-# mp.set_sharing_strategy("file_descriptor")
-mp.set_sharing_strategy("file_system")
+mp.set_sharing_strategy("file_descriptor")
+shutdown_event = mp.Event()
+
+
+def shutdown_wrapper(f):
+    def new_f(cls, *args, **kwargs):
+        return f(cls, shutdown_event, *args, **kwargs)
+
+    return new_f
+
+
+StepBase.__init__ = shutdown_wrapper(StepBase.__init__)
+InputStep.__init__ = shutdown_wrapper(InputStep.__init__)
+OutputStep.__init__ = shutdown_wrapper(OutputStep.__init__)
+Sequence.__init__ = shutdown_wrapper(Sequence.__init__)
+
+# mp.set_sharing_strategy("file_system")
 
 # Reworked according to the recommendations in
 # https://pytorch.org/docs/stable/multiprocessing.html
