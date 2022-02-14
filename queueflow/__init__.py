@@ -14,22 +14,24 @@ pickling_support.install()
 
 # Two recommendations by
 # https://github.com/pytorch/pytorch/issues/973
-# 1. (not needed for the moment)
-# import resource
-# rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
-# resource.setrlimit(resource.RLIMIT_NOFILE, (2000 , rlimit[1]))
-# 2.
-# Without the following option it crashes with
-#   File ".../multiprocessing/reduction.py", line 164, in recvfds
-#     raise RuntimeError('received %d items of ancdata' %
-# RuntimeError: received 0 items of ancdata
+def init(file_descriptor: bool = True):
+    # Without the following option it crashes with
+    #   File ".../multiprocessing/reduction.py", line 164, in recvfds
+    #     raise RuntimeError('received %d items of ancdata' %
+    # RuntimeError: received 0 items of ancdata
+    if file_descriptor:
+        import resource
+
+        rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
+        resource.setrlimit(resource.RLIMIT_NOFILE, (2000, rlimit[1]))
+        mp.set_sharing_strategy("file_descriptor")
+    else:
+        mp.set_sharing_strategy("file_system")
 
 
-# Make it work ()
-mp.set_sharing_strategy("file_descriptor")
 shutdown_event = mp.Event()
-
-
+# Provide the constructors of all classes
+# with a global shutdown event
 def shutdown_wrapper(f):
     def new_f(cls, *args, **kwargs):
         return f(cls, shutdown_event, *args, **kwargs)
