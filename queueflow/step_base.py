@@ -1,16 +1,16 @@
 import threading
 from multiprocessing.queues import Full
-from types import GeneratorType
 
 import torch
 import torch_geometric
 from torch import multiprocessing as mp
 
-from .batch_utils import batch_to_numpy_dict, clone_batch
+from .batch_utils import batch_to_numpy_dict
+from .handle_data import HandleDataBase
 from .logger import logger
 
 
-class StepBase:
+class StepBase(HandleDataBase):
     """Base class"""
 
     def __init__(
@@ -53,17 +53,6 @@ class StepBase:
         self.error_queue.close()
         self.error_queue.join_thread()
         logger.debug(f"""{self.workername} error_queue closed""")
-
-    def _clone_tensors(self, wkin):
-        if isinstance(wkin, list):
-            return [self._clone_tensors(e) for e in wkin]
-        elif isinstance(wkin, GeneratorType):
-            return (self._clone_tensors(e) for e in wkin)
-        elif isinstance(wkin, torch_geometric.data.batch.Data):
-            return clone_batch(wkin)
-        elif isinstance(wkin, torch.Tensor):
-            return wkin.clone()
-        return wkin
 
     def set_workername(self):
         self.workername = self.name + "-" + mp.current_process().name.split("-")[1]

@@ -2,12 +2,12 @@ from multiprocessing.queues import Empty, Full
 
 import torch_geometric
 
-from .batch_utils import clone_batch
+from .handle_data import HandleDataBase
 from .logger import logger
 from .terminate_queue import TerminateQueue
 
 
-class InOutStep:
+class InOutStep(HandleDataBase):
     def __init__(self):
         raise NotImplementedError
 
@@ -60,9 +60,7 @@ class OutputStep(InOutStep):
                 if isinstance(out, TerminateQueue):
                     logger.debug("OutputStep got terminal element.")
                     break
-                if isinstance(out, torch_geometric.data.Data):
-                    out = clone_batch(out)
-                return out
+                return self._clone_tensors(out)
             except Empty:
                 continue
             logger.debug("Sequence output ready.")
