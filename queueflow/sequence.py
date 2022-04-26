@@ -37,8 +37,8 @@ class Sequence:
         self.__iterable_queued = False
         self.__seq = [InputStep(), *seq, OutputStep()]
 
-        self.shutdown_event = shutdown_event
-        self.error_queue = mp.Queue()
+        self.shutdown_event: mp.Event = shutdown_event
+        self.error_queue: mp.Queue = mp.Queue()
         # Chain the processes and queues
 
         for elem in self.__seq:
@@ -95,9 +95,10 @@ class Sequence:
         self.error_queue_thread = threading.Thread(
             target=self.read_error_queue, daemon=True, args=(self.shutdown_event,)
         )
-        self.__start()
+        self.started = False
 
-    def __start(self):
+    def start(self):
+        assert not self.started
         logger.debug("Before Sequence Start\n" + str(self.flowstatus()))
 
         for seq_elem in self.__seq:
@@ -114,6 +115,7 @@ class Sequence:
 
         self.status_printer_thread.start()
         self.error_queue_thread.start()
+        self.started = True
 
     def __iter__(self):
         return self
@@ -123,6 +125,8 @@ class Sequence:
             raise BufferError(
                 "No iterable queued: call queueflow.queue_iterable(iterable)"
             )
+        if not self.started:
+            raise RuntimeError("Start the queueflow sequence first.")
         try:
             out = next(self.__seq[-1])
             return out
