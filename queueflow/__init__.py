@@ -1,6 +1,6 @@
 import re
 
-from tblib import pickling_support
+#  from tblib import pickling_support
 from torch import multiprocessing as mp
 
 from .in_out import InputStep, OutputStep
@@ -10,10 +10,10 @@ from .process_step import ProcessStep
 from .sequence import Sequence
 from .step_base import StepBase
 
-pickling_support.install()
+#  pickling_support.install()
 
 # Two recommendations by
-# https://github.com/pytorch/pytorch/issues/973
+## https://github.com/pytorch/pytorch/issues/973
 def init(file_descriptor: bool = True):
     # Without the following option it crashes with
     #   File ".../multiprocessing/reduction.py", line 164, in recvfds

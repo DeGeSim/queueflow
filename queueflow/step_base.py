@@ -88,13 +88,16 @@ Had to kill process of name {self.name}."""
         return (sum([p.is_alive() for p in self.processes]), self.nworkers)
 
     def handle_error(self, error, obj):
+        tb = traceback.format_exc()
+
         if isinstance(obj, torch.Tensor):
             obj = obj.numpy()
         if isinstance(obj, torch_geometric.data.Data):
             obj = batch_to_numpy_dict(obj)
+
         workermsg = f"""
 {self.workername} failed on element of type of type {type(obj)}."""
-        self.error_queue.put((workermsg, obj, error))
+        self.error_queue.put((workermsg, obj, str(error), tb))
 
     def _worker(self, shutdown_event):
         raise NotImplementedError

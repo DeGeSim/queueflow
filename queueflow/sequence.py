@@ -190,7 +190,10 @@ Process {ip} (of {len(step.processes)}) of step {istep} is still alive!"""
         threading.current_thread().setName("readErrorQueue")
         while not shutdown_event.is_set() and not self.error_queue._closed:
             try:
-                workermsg, wkin, error = self.error_queue.get(block=True, timeout=0.5)
+                workermsg, wkin, error, tb = self.error_queue.get(
+                    block=True, timeout=0.5
+                )
+
                 # If there is an error, stop eveything
                 logger.error("Error, setting shutdown event!")
                 shutdown_event.set()
@@ -200,7 +203,9 @@ Process {ip} (of {len(step.processes)}) of step {istep} is still alive!"""
                     logger.error(errstr)
                 finally:
                     logger.error("Type of object causing the error:" + str(type(wkin)))
-                    raise error
+                    logger.error(tb)
+                    logger.error(error)
+                    raise RuntimeError
             except Empty:
                 continue
 
