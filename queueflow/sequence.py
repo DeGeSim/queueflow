@@ -1,3 +1,4 @@
+import signal
 import threading
 import time
 from multiprocessing.queues import Empty
@@ -116,6 +117,7 @@ class Sequence:
         self.status_printer_thread.start()
         self.error_queue_thread.start()
         self.started = True
+        self.__sigtermhandle = SigTermHandel(self)
 
     def __iter__(self):
         return self
@@ -265,3 +267,16 @@ Process {ip} (of {len(step.processes)}) of step {istep} is still alive!"""
                 logger.info("\n" + newflowstatus)
                 oldflowstatus = newflowstatus
             time.sleep(sleeptime)
+
+
+class SigTermHandel:
+    def __init__(self, qfseq: Sequence) -> None:
+        self.qfseq = qfseq
+        signal.signal(signal.SIGTERM, self.handle)
+        signal.signal(signal.SIGINT, self.handle)
+
+    def handle(self, _signo, _stack_frame):
+        print("SIGTERM detected, stopping qfseq")
+        #  self.holder.save_checkpoint()
+        self.qfseq.stop()
+        exit()

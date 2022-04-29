@@ -83,6 +83,8 @@ Had to kill process of name {self.name}."""
                 break
             except Full:
                 continue
+            except KeyboardInterrupt:
+                break
 
     def process_status(self):
         return (sum([p.is_alive() for p in self.processes]), self.nworkers)

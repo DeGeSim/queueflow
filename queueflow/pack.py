@@ -154,6 +154,8 @@ class RepackStep(StepBase):
                 break
             try:
                 wkin = self.inq.get(block=True, timeout=0.05)
+            except KeyboardInterrupt:
+                break
             except Empty:
                 continue
             logger.debug(

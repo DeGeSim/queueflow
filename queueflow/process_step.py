@@ -53,38 +53,42 @@ class ProcessStep(StepBase):
         )
         while not shutdown_event.is_set():
             try:
-                wkin = self.inq.get(block=True, timeout=0.05)
-            except Empty:
-                continue
-            logger.debug(
-                f"""\
-{self.workername} working on element of type {type(wkin)} from queue {id(self.inq)}."""
-            )
-            # If the process gets the terminate_queue object,
-            # wait for the others and put it in the next queue
-            if isinstance(wkin, TerminateQueue):
-                self.__handle_terminal()
-                continue
-            self.count_in += 1
+                try:
+                    wkin = self.inq.get(block=True, timeout=0.05)
+                except Empty:
+                    continue
+                logger.debug(
+                    f"""\
+    {self.workername} working on element of type {type(wkin)} from queue {id(self.inq)}."""
+                )
+                # If the process gets the terminate_queue object,
+                # wait for the others and put it in the next queue
+                if isinstance(wkin, TerminateQueue):
+                    self.__handle_terminal()
+                    continue
+                self.count_in += 1
 
-            # We need to overwrite the method of cloning the batches
-            # because we have list of tensors as attibutes of the batch.
-            # If copy.deepcopy is called on this object
-            wkin = self._clone_tensors(wkin)
+                # We need to overwrite the method of cloning the batches
+                # because we have list of tensors as attibutes of the batch.
+                # If copy.deepcopy is called on this object
 
-            try:
-                wkout = self.workerfn(wkin)
+                wkin = self._clone_tensors(wkin)
 
-            # Catch Errors in the worker function
-            except Exception as error:
-                self.handle_error(error, wkin)
+                try:
+                    wkout = self.workerfn(wkin)
+
+                # Catch Errors in the worker function
+                except Exception as error:
+                    self.handle_error(error, wkin)
+                    break
+
+                logger.debug(
+                    f"{self.workername} push single "
+                    + f"output of type {type(wkout)} into output queue {id(self.outq)}."
+                )
+                self.safe_put(self.outq, wkout)
+                self.count_out += 1
+                del wkin
+            except KeyboardInterrupt:
                 break
-
-            logger.debug(
-                f"{self.workername} push single "
-                + f"output of type {type(wkout)} into output queue {id(self.outq)}."
-            )
-            self.safe_put(self.outq, wkout)
-            self.count_out += 1
-            del wkin
         self._close_queues()

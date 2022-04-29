@@ -55,64 +55,67 @@ class PoolStep(StepBase):
 
         while not shutdown_event.is_set():
             try:
-                wkin = self.inq.get(block=True, timeout=0.05)
-            except Empty:
-                continue
-            logger.debug(
-                f"""\
-{self.workername} working on element of type {type(wkin)} from queue {id(self.inq)}."""
-            )
-
-            # If the process gets a TerminateQueue object,
-            # it terminates the pool and and puts the terminal element in
-            # in the outgoing queue.
-            if isinstance(wkin, TerminateQueue):
-                logger.info(f"{self.workername} terminating")
-                self.safe_put(self.outq, TerminateQueue())
-                logger.warning(
+                try:
+                    wkin = self.inq.get(block=True, timeout=0.05)
+                except Empty:
+                    continue
+                logger.debug(
                     f"""\
-{self.workername} finished with iterable (in {self.count_in}/out {self.count_out})"""
+    {self.workername} working on element of type {type(wkin)} from queue {id(self.inq)}."""
                 )
-                self.count_in, self.count_out = 0, 0
-                continue
-            self.count_in += 1
-            wkin = self._clone_tensors(wkin)
 
-            assert isinstance(wkin, Iterable)
-            logger.debug(
-                f"{self.workername} got element"
-                + f" {id(wkin)} of element type {type(wkin)}."
-            )
+                # If the process gets a TerminateQueue object,
+                # it terminates the pool and and puts the terminal element in
+                # in the outgoing queue.
+                if isinstance(wkin, TerminateQueue):
+                    logger.info(f"{self.workername} terminating")
+                    self.safe_put(self.outq, TerminateQueue())
+                    logger.warning(
+                        f"""\
+    {self.workername} finished with iterable (in {self.count_in}/out {self.count_out})"""
+                    )
+                    self.count_in, self.count_out = 0, 0
+                    continue
+                self.count_in += 1
+                wkin = self._clone_tensors(wkin)
 
-            try:
-                wkout_async_res = self.pool.map_async(
-                    self.workerfn,
-                    wkin,
+                assert isinstance(wkin, Iterable)
+                logger.debug(
+                    f"{self.workername} got element"
+                    + f" {id(wkin)} of element type {type(wkin)}."
                 )
-                while True:
-                    if wkout_async_res.ready():
-                        wkout = wkout_async_res.get()
+
+                try:
+                    wkout_async_res = self.pool.map_async(
+                        self.workerfn,
+                        wkin,
+                    )
+                    while True:
+                        if wkout_async_res.ready():
+                            wkout = wkout_async_res.get()
+                            break
+                        elif shutdown_event.is_set():
+                            break
+                        wkout_async_res.wait(1)
+                    if shutdown_event.is_set():
                         break
-                    elif shutdown_event.is_set():
-                        break
-                    wkout_async_res.wait(1)
-                if shutdown_event.is_set():
+
+                except Exception as error:
+                    logger.warning(f"""{self.workername} got error""")
+                    self.handle_error(error, wkin)
                     break
 
-            except Exception as error:
-                logger.warning(f"""{self.workername} got error""")
-                self.handle_error(error, wkin)
+                logger.debug(
+                    f"""\
+    {self.workername} push pool output list {id(wkout)} with \
+    element type {type(wkin)} into output queue {id(self.outq)}."""
+                )
+                # Put while there is no shutdown event
+                self.safe_put(self.outq, wkout)
+                self.count_out += 1
+                del wkin
+            except KeyboardInterrupt:
                 break
-
-            logger.debug(
-                f"""\
-{self.workername} push pool output list {id(wkout)} with \
-element type {type(wkin)} into output queue {id(self.outq)}."""
-            )
-            # Put while there is no shutdown event
-            self.safe_put(self.outq, wkout)
-            self.count_out += 1
-            del wkin
         self.pool.close()
         self.pool.terminate()
         logger.debug(f"""{self.workername} pool closed""")
