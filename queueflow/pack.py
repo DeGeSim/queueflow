@@ -1,6 +1,8 @@
 from collections.abc import Iterable
 from multiprocessing.queues import Empty
 
+from torch.multiprocessing import Value
+
 from .logger import logger
 from .step_base import StepBase
 from .terminate_queue import TerminateQueue
@@ -61,8 +63,8 @@ class PackStep(StepBase):
     """Takes an iterable from the incoming queue and
     puts the elements one-by-one in the outgoing queue."""
 
-    def __init__(self, nelements, *args, **kwargs):
-        kwargs["name"] = f"Pack({nelements})"
+    def __init__(self, nelements: Value, *args, **kwargs):
+        kwargs["name"] = f"Pack({nelements.value})"
         super().__init__(*args, **kwargs)
         self.nelements = nelements
         self.collected_elements = []
@@ -106,7 +108,7 @@ class PackStep(StepBase):
             )
             self.collected_elements.append(wkin)
 
-            if len(self.collected_elements) == self.nelements:
+            if len(self.collected_elements) == self.nelements.value:
                 logger.debug(
                     f"""\
 {self.workername} push list of type \
@@ -122,8 +124,8 @@ class RepackStep(StepBase):
     """Takes an iterable from the incoming queue,
     collects n elements and packs them as a list in the outgoing queue."""
 
-    def __init__(self, nelements, *args, **kwargs):
-        kwargs["name"] = f"Repack({nelements})"
+    def __init__(self, nelements: Value, *args, **kwargs):
+        kwargs["name"] = f"Repack({nelements.value})"
         super().__init__(*args, **kwargs)
         self.nelements = nelements
         self.collected_elements = []
@@ -178,11 +180,11 @@ class RepackStep(StepBase):
             )
             for element in wkin:
                 self.collected_elements.append(element)
-                if len(self.collected_elements) == self.nelements:
+                if len(self.collected_elements) == self.nelements.value:
                     logger.debug(
                         f"""\
 {self.workername} push list of type {type(self.collected_elements[-1])} \
-with {self.nelements} elements into output queue {id(self.outq)}."""
+with {self.nelements.value} elements into output queue {id(self.outq)}."""
                     )
                     self.safe_put(self.outq, self.collected_elements)
                     self.collected_elements = []
