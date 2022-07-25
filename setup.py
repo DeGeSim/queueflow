@@ -3,15 +3,9 @@
 from setuptools import find_packages, setup
 
 install_requirements = [
-    "numpy",
+    "numpy >= 1.21.0",
+    "torch >= 1.8.0",
     "setuptools",
-    "torch",
-    "torch-geometric",
-    "torch-sparse",
-    "multiprocessing-logging",
-    "tqdm",
-    "uproot",
-    "rich",
 ]
 
 setup(
