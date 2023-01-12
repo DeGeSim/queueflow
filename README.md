@@ -95,7 +95,7 @@ def read_chunk(chunks):
     # split up the events and pass them as a dict
     output = [
         {k: data_dict[k][ientry] for k in conf.loader.keylist}
-        for ientry in range(conf.loader.chunksize)
+        for ientry in range(conf.loader.chunk_size)
     ]
     return output
 
@@ -118,14 +118,14 @@ def process_seq():
         # For these elements to be processed by each of the workers in the following
         # transformthey need to be (x [51 * 51 * 25], y [1] ):
         qf.PoolStep(
-            transform, nworkers=conf.loader.num_workers_transform, name="transform"
+            transform, nworkers=conf.loader.n_workers_transform, name="transform"
         ),
         Queue(1),
         qf.RepackStep(conf.loader.batch_size),
         qf.ProcessStep(geo_batch, 1, name="geo_batch"),
         qf.ProcessStep(
             split_layer_subgraphs,
-            conf.loader.num_workers_stack,
+            conf.loader.n_workers_stack,
             name="split_layer_subgraphs",
         ),
         # Needed for outputs to stay in order.
